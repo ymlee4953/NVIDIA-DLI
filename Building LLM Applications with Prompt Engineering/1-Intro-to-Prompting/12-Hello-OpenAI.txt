@@ -1,0 +1,74 @@
+![nvidia](images/nvidia.png)
+# Hello World with OpenAI Library
+In this notebook, we will learn how to interact with the OpenAI API to generate text completions using the Llama 3.1 8b model. This introductory section will help you understand the basics of setting up and using the OpenAI library for interacting with LLMs.
+---
+## Objectives
+By the time you complete this notebook you will:
+
+- Understand how to set up and use the OpenAI library.
+- Generate text completions using the Llama 3.1 8b instruct model.
+- Learn to interpret and utilize the API response.
+- Understand the importance of using *chat* completion endpoints with chat models like Llama 3.1 8b instruct.
+---
+## Imports
+Here we import the `OpenAI` library, which will enable us to interact with our locally hosted Llama 3.1 8b Instruct NIM, which exposes the OpenAI API.
+from openai import OpenAI
+---
+## Setting Up the OpenAI Client
+To start using the OpenAI API, we need to set up the OpenAI client. This involves configuring the base URL and providing an API key.
+
+By default, OpenAI API servers listen on port `8000` and expose the `/v1` endpoint. In our case, we have a NIM running locally on the same machine where you are interacting with this Jupyter environment, and the NIM is available at a host called `llama`. Therefore, to construct the `base_url` to interact with the NIM, we will use the `llama` hostname in conjunction with port `8000` and the `/v1` endpoint:
+base_url = 'http://llama:8000/v1'
+When creating an OpenAI client, the `api_key` argument is required, but in our case with the model running locally, we don't actually need to provide an API key. Therefore we will set the value of `api_key` to an arbitrary string.
+api_key = 'an_arbitrary_string'
+With a `base_url` and `api_key` we can now instantiate an OpenAI client.
+client = OpenAI(base_url=base_url, api_key=api_key)
+---
+## Observing Available Models
+Now that we've created an OpenAI client, we can, as a first step, use it to observe any models available to us using a call to `client.models.list()`. In our case, as we've mentioned, we expect to see a Llama 3.1 8B Instruct model.
+available_models = client.models.list()
+available_models
+There's a lot of information here that we are not concerned with, but if we drill into the object a little we can see more clearly the model we have available through the client:
+available_models.data[0].id
+---
+## Making a Simple Chat Completion Request
+With the `client` instance now created, we can make a simple request to generate chat completions by using the `client.chat.completions.create` method which expects a `model` to use for the completion, as well as a list of `messages` to send to the model. We will be discussing the details of the `messages` list in more detail below, but for now we will pass in a simple single message containing a prompt from the user (you) asking for a fun fact about space.
+model = 'meta/llama-3.1-8b-instruct'
+prompt = 'Tell me a fun fact about space.'
+response = client.chat.completions.create(
+    model=model,
+    messages=[{'role': 'user', 'content': prompt}]
+)
+print(response)
+There's a fair amount of information provided in the API response, but the part we are most interested in is the response from the model.
+
+Here we parse just the model's generated response out of the full API response.
+model_response = response.choices[0].message.content
+print(model_response)
+---
+## Exercise: Create Your First Prompt
+Use our existing OpenAI API `client` to generate and print a response from our local Llama 3.1 8b model to a prompt of your choice.
+### Your Work Here
+
+### Solution
+prompt = 'What is the OpenAI API?'
+response = client.chat.completions.create(
+    model=model,
+    messages=[{'role': 'user', 'content': prompt}]
+)
+model_response = response.choices[0].message.content
+print(model_response)
+---
+## Understanding Completion and Chat Completion Endpoints
+We have been working with the `chat.completions` endpoint, but when working with the OpenAI API, you also have the option to use the `completions` endpoint. Understanding the differences between these endpoints is crucial, as they handle prompts and generate responses differently, even for a single prompt.
+
+The `chat.completions` endpoint is designed to handle multi-turn conversations, keeping track of the context provided by previous messages. It generates more concise, focused responses by anticipating a back-and-forth interaction, even if only a single prompt is provided.
+
+The `completions` endpoint is designed for generating a response to a single prompt without maintaining conversational context. It aims to complete the prompt that was given to it, rather than respond to it conversationally.
+
+The main takeaway is that when working with "chat" or "instruction" models (like the llama-3.1-8b-instruct model you are working with today), use `chat.completions` and not `completions`.
+---
+## Summary
+By completing this notebook, you should now have a basic understanding of how to use the OpenAI library to generate chat completions, and parse out the model response. This foundation will prepare you for more advanced topics and techniques in prompt engineering.
+
+In the next notebook, we will explore how to use LangChain to interact with language models, which will provide more flexibility and advanced capabilities for managing and generating text.

@@ -1,0 +1,145 @@
+![NVIDIA](images/nvidia.png)
+# Structured Output
+In this notebook we introduce using LLMs to generate structured output, and explore some basic methods for generating data in batch for downstream use.
+---
+## Objectives
+By the time you complete this notebook you will:
+
+- Learn about the value of getting LLMs to generate structured output.
+- Prompt your model to generate structured output.
+- Use the chat model to batch process inputs into structured data.
+---
+## Imports
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser, SimpleJsonOutputParser
+from langchain_core.runnables import RunnableLambda
+---
+## Create a Model Instance
+base_url = 'http://llama:8000/v1'
+model = 'meta/llama-3.1-8b-instruct'
+llm = ChatNVIDIA(base_url=base_url, model=model, temperature=0)
+---
+## LLMs and Highly Structured Data Formats
+A very common task we would like LLMs to perform is to generate outputs in a highly structured format. These formats could be as common as JSON, or a Python list, or some custom structure unique to our needs like a custom report or document structure, just to name a few examples.
+
+Over time, as LLMs have gotten better, their ability to generate highly structured data has improved drastically, even for small LLMs (like the 8B model we are using today), but still, and especially when generating structures with highly-specific formatting requirements, like JSON (or code of any type for that matter), it can take some prompt engineering efforts to get the model to consistently produce what we need.
+
+Let's work on a very common task: getting a model to produce structured JSON. JSON is a great structure in the context of many applications as it can be used in many downstream tasks either directly, or by converting the JSON to a large variety of other usable formats like Python dicts, data frames and many many more.
+---
+## A Simple JSON Object
+In the spirit of iterative prompt development, let's start simply by engineering a prompt instructing the model to construct a JSON object. For our example we'll ask the model to create a simple JSON object representing details about the city of Santa Clara.
+prompt = '''\
+Make a JSON object representing the city Santa Clara. \
+It should have fields for: \
+- The name of the city \
+- The country the city is located in.'''
+print(llm.invoke(prompt).content)
+We got back some conversational text from the model that is not desired, but in the response is a very nice looking JSON object, which is great.
+
+As an aside, LLMs are rapidly getting much better at generating structured output, and we expect them to continue getting better and better. Even several months ago (at the time of writing this in the summer of 2024), using Llama 3.1's predecessor Llama 2, getting back such a nice response out of an 8B model with such a simple prompt was just not going to happen.
+
+However, we still have work to do, so let's iterate on our prompt to see if we can get rid of the conversational text.
+prompt = '''\
+Make a JSON object representing the city Santa Clara. \
+It should have fields for:
+- The name of the city
+- The country the city is located in.
+
+Only return the JSON. Never return non-JSON text.'''
+print(llm.invoke(prompt).content)
+This is getting closer, but for our purpose, let's see if we can get rid of the backticks wrapper too.
+prompt = '''\
+Make a JSON object representing the city Santa Clara. \
+It should have fields for:
+- The name of the city
+- The country the city is located in.
+
+Only return the JSON. Never return non-JSON text including backtack wrappers around the JSON.'''
+print(llm.invoke(prompt).content)
+That's what we want. Just to sanity check our work, let's load the model's response into a Python dict and try to iterate over it.
+json_city = llm.invoke(prompt).content
+import json
+python_city = json.loads(json_city)
+
+for k, v in python_city.items():
+    print(f'{k}: {v}')
+---
+## Make a Template Out of the Prompt
+Next let's convert our prompt to be a prompt template so we can parameterize the city name.
+json_city_template = ChatPromptTemplate.from_template('''\
+Make a JSON object representing the city {city_name}. \
+It should have fields for:
+- The name of the city
+- The country the city is located in.
+
+Only return the JSON. Never return non-JSON text including backtack wrappers around the JSON.''')
+Next we'll compose a simple chain.
+parser = StrOutputParser()
+chain = json_city_template | llm | parser
+print(chain.invoke({'city_name': 'Santa Clara'}))
+This also looks good.
+---
+## Simple JSON Parsing
+To confirm that we can load the JSON object as a Python dict, we can use a custom runnable to parse the model response directly to a Python dict.
+parse_to_dict = RunnableLambda(lambda response: json.loads(response.content))
+We'll re-compose our chain to use this custom parser.
+chain = json_city_template | llm | parse_to_dict
+chain.invoke({'city_name': 'Santa Clara'})
+This appears to work great.
+
+As a small improvement, rather than creating our own parser, LangChain provides `SimpleJsonOutputParser` for just this use case. Let's reconstruct our chain using it.
+from langchain_core.output_parsers import SimpleJsonOutputParser
+json_parser = SimpleJsonOutputParser()
+chain = json_city_template | llm | json_parser
+chain.invoke({'city_name': 'Santa Clara'})
+---
+## Batch on Multiple Inputs
+So far so good, but continuing in the spirit of iterative prompt development, now let's try our chain on several different inputs.
+city_names = [
+    {'city_name': 'Santa Clara'},
+    {'city_name': 'Busan'},
+    {'city_name': 'Cairo'},
+    {'city_name': 'Perth'}
+]
+city_details = chain.batch(city_names)
+city_details
+for city in city_details:
+    print(f'City: {city['name']}\nCountry: {city['country']}\n')
+---
+## Structure and Generation
+Since we've been using LLMs to generate content throughout the workshop this might be obvious, but it's worth highlighting: not only are we using the LLM as a means to structure data that we provide it, be we are combining this with its generative capabilities.
+
+In the example we just worked through our input data was the name of a city, which we wanted structured into JSON. But more than just structuring the information we provided (the name of the city) we used the generative capabilities of the model to extend the structured data with the country that the city is located in, which we did not provide ourselves.
+
+Generating structured output/data that has been augmented with the generative capacity of an LLM is tremendously powerful.
+---
+## Exercise: Generate a List of Book Details
+Using the techniques you've learned thus far, generate a python list containing dictionaries that each contain details about the following books.
+
+Each dict should have the book's title, author, and year of original publication.
+
+Feel free to check out the *Solution* below if you get stuck.
+sci_fi_books = [
+    {"book_title": "Dune"},
+    {"book_title": "Neuromancer"},
+    {"book_title": "Snow Crash"},
+    {"book_title": "The Left Hand of Darkness"},
+    {"book_title": "Foundation"}
+]
+### Your Work Here
+
+### Solution
+book_template = ChatPromptTemplate.from_template('''\
+Make a JSON object representing the details of the following book: {book_title}. \
+It should have fields for:
+- The title of the book.
+- The author of the book.
+- The year the book was originally published.
+
+Only return the JSON. Never return non-JSON text including backtack wrappers around the JSON.''')
+chain = book_template | llm | json_parser
+chain.batch(sci_fi_books)
+---
+## Summary
+In this notebook you began approaching the technique of LLMs generating structured output. In the next notebook you're going to drastically increase your capabilities in this arena by using Pydantic classes and LangChain's JsonOutputParser.

@@ -1,0 +1,224 @@
+![NVIDIA](images/nvidia.png)
+# Structured Output with Pydantic
+In this notebook you will drastically upgrade your ability to generate structured output through a combination of Pydantic classes and LangChain's `JsonOutputParser`.
+---
+## Objectives
+By the time you complete this notebook you will:
+
+- Understand the limitations of our current approach to generating structured data.
+- Learn to create class-driven schemas for structured data generation using Pydantic.
+---
+## Imports
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.runnables import RunnableLambda
+from langchain_core.pydantic_v1 import BaseModel, Field
+---
+## Create a Model Instance
+base_url = 'http://llama:8000/v1'
+model = 'meta/llama-3.1-8b-instruct'
+llm = ChatNVIDIA(base_url=base_url, model=model, temperature=0)
+---
+## Limitations of Our Current Structured Data Approach
+Your implementation might have been slightly different, but in the solution to the previous notebook's exercise we had some success with the following prompt template to generate a JSON object containing book details.
+book_template = ChatPromptTemplate.from_template('''\
+Make a JSON object representing the details of the following book: {book_title}. \
+It should have fields for:
+- The title of the book.
+- The author of the book.
+- The year the book was originally published.
+
+Only return the JSON. Never return non-JSON text including backtack wrappers around the JSON.''')
+Using this template, our solution implementation generated the following list of book details:
+```python
+[{'title': 'Dune', 'author': 'Frank Herbert', 'year_of_publication': 1965},
+ {'title': 'Neuromancer', 'author': 'William Gibson', 'year': 1984},
+ {'title': 'Snow Crash', 'author': 'Neal Stephenson', 'yearPublished': '1992'},
+ {'title': 'The Left Hand of Darkness',
+  'author': None,
+  'publication_year': None},
+ {'title': 'Foundation', 'author': 'Isaac Asimov', 'year': '1951'}]
+ ```
+The result was well-formatted, but looking more carefully at it, we can see it has some issues:
+
+- The key names are not consistent for all values, for example `'year_of_publication'`, `'year'`, and `'yearPublished'`.
+- The year has been generated at times as a string (`'1992'`), at times as an int (`1984`), and at times as a NoneType.
+
+At this point in the workshop, knowing what you already do, you're probably already full of ideas about how to address each of these. Perhaps the following ideas come to mind:
+
+- Be more specific in our prompt about the names of the keys, the types of the values, and what to do when the LLM can't generate data for a field.
+- Try including a system message to more strongly reinforce how we want the LLM to generate responses.
+- Provide few-shot examples to help the model understand all the specifics of what it should and shouldn't do.
+
+If you're thinking along these lines, that's really fantastic, and you're correct about approaching the problem this way.
+
+But let's consider some of the ways that our task might get even more complicated:
+
+- What if we wanted to templatize more of the prompt, for example, which fields to include?
+- What if our data structure gets far more complicated?
+- Since we are generating data, what if we wanted to capture a definition of our data type for use elsewhere?
+
+Again, knowing what you already know, you can likely think of viable ways to accomplish each of these, though it's easy to imagine it getting rather complicated quick. Luckily for us, LangChain ships with a variety of tools to help us accomplish generating structured data, and using them will greatly simplify our application code and allow us to perform more complicated structured data generation tasks more easily.
+---
+## Structured Data as a Class
+Even before we get to LangChain-specific tools to help us generate structured data, let's take a step back and think about how we might articulate a data structure in Python if we weren't working in the context of LLMs. One very sensible approach would be to create a Python class.
+
+Here we define a `Book` class that captures what we hoped to describe in our prompt template above.
+class Book:
+    """Information about a book."""
+    
+    def __init__(self, title, author, year_of_publication):
+        self.title = title
+        self.author = author
+        self.year_of_publication = year_of_publication
+However, there are some details we discussed above about our structured data that this class does not yet capture, like the type of the value for each field. Also, unlike our actual prompt template, there is no description, aside from its name, about what each field ought to contain.
+
+Let's improve on this slightly but rewriting the class to include Python type hints, and some comments articulating the intended value of each field.
+class Book:
+    """Information about a book."""
+
+    def __init__(self, title: str, author: str, year_of_publication: int):
+        self.title: str = title  # The title of the book
+        self.author: str = author  # The author of the book
+        self.year_of_publication: int = year_of_publication  # The year the book was published
+It's still missing aspects like default values and data validation, but for the most part, if we had a way to convey the infomation contained in the above class, including its comments, in a prompt, we might be in pretty good shape.
+---
+## Pydantic
+In fact, LangChain provides us with exactly what we need to convey the information contained in classes to prompts. In doing so we have a powerful tool that enables us to articulate the structure of the data we want generated in a class, and then let LangChain do some of the more tedious work of conveying the information we capture in the class to a prompt.
+
+In order to do this however, we need to use Pydantic classes instead of vanilla Python classes.
+
+If you're unfamiliar, [Pydantic](https://docs.pydantic.dev/latest/) is "the most widely used data validation library for Python." If you're not using Pydantic in your object-oriented Python code, there's a good chance you'll enjoy learning how to use it.
+
+For our purposes, we are only going to be using Pydantic to construct straightforward classes so that LangChain can then work with our class definitions to create prompts that will assist us in generating structured data.
+
+The relevant Pydantic functionality has been integrated into LangChain, so to begin working with Pydantic classes, we need to import the following.
+from langchain_core.pydantic_v1 import BaseModel, Field
+Having imported `BaseModel` and `Field` we are now able to rewrite our `Book` class using Pydantic as follows.
+class Book(BaseModel):
+    """Information about a book."""
+
+    title: str = Field(description="The title of the book")
+    author: str = Field(description="The author of the book")
+    year_of_publication: str = Field(description="The year the book was published")
+As you can see, when we want to construct a Pydantic class, we create a class that inherits from `BaseModel` as we're doing above.
+
+Rather than creating an `__init__` function, we can supply the class's fields at the top level of the class definition by defining them with `Field`, which, as a convenience, allows us provide a `desciption` argument about the intended use of the field.
+---
+## From Class to Formatting Instructions
+In order to take the structure defined in our Pydantic `Book` class and generate a JSON object, we need a prompt to provide the model. LangChain's `JsonOutputParser` will provide us with just that.
+
+First we'll import the `JsonOutputParser` class.
+from langchain_core.output_parsers import JsonOutputParser
+Just like with the `StrOutputParser` and `SimpleJsonOutputParser` parsers that we've used previously, we need to create an instance of the parser to use in our chain.
+
+Different from the parsers we've worked with earlier, however, we can provide `JsonOutputParser` with an argument `pydantic_object` and provide a Pydantic object expressing how we want the JSON to be parsed. Here we'll pass in our Pydantic `Book`.
+parser = JsonOutputParser(pydantic_object=Book)
+Instances of `JsonOutputParser` contain a `get_format_instructions` method which create explicit instructions for formatting the JSON based on the provided Pydantic object.
+format_instructions = parser.get_format_instructions()
+print(format_instructions)
+This is a really fantastic convenience to have the parser generate these detailed formatting instructions for us.
+---
+## The Importance of Docstrings and Field Descriptions
+In the `format_instructions` above you'll notice several `"description"` fields. The top level `"description"` field states `""Information about a book.""`, the `"title"` `"description"` field states `"The title of the book"`. If we look again at our Pydantic class definition...
+class Book(BaseModel):
+    """Information about a book."""
+
+    title: str = Field(description="The title of the book")
+    author: str = Field(description="The author of the book")
+    year_of_publication: str = Field(description="The year the book was published")
+...you'll see that these descriptions were created from the class's docstring (for the top level description) and for each of the passed in `description` values (for each of the fields).
+
+These texts are critical for conveying our intent to the LLM. When creating Pydantic classes to be used as formatting tools with LLMs, always take care to provide a meaningful docstring for the entire class, as well as good descriptions for each of its fields.
+---
+## Using Formatting Instructions in Prompts
+Let's leverage the formatting instructions created by `JsonOutputParser` based on the Pydantic `Book` class in a prompt. While we are at it, we might as well also supply a system message to support our intended goal.
+template = ChatPromptTemplate.from_messages([
+    ("system", "You are an AI that generates JSON and only JSON according to the instructions provided to you."),
+    ("human", (
+        "Generate JSON about the user input according to the provided format instructions.\n" +
+        "Input: {input}\n" +
+        "Format instructions {format_instructions}")
+    )
+])
+Next we'll create our chain.
+chain = template | llm | parser # Created above with `parser = JsonOutputParser(pydantic_object=Book)`
+When we invoke this template, we'll need to provide an `input`, which in this case should be a book title, as well as `format_instructions`, which we have already obtained from `parser.format_instructions()`.
+chain.invoke({
+    "input": "East of Eden",
+    "format_instructions": format_instructions
+})
+Since we are going to want to provide different `input` values, but retain the same `format_instructions`, we can partially apply our existing `format_instructions` to the prompt template using the template's `.partial` method.
+chain = template.partial(format_instructions=format_instructions) | llm | parser # Created above with `parser = JsonOutputParser(pydantic_object=Book)`
+Let's try our new chain with a batch of books.
+book_titles = ["Dune", "Neuromancer", "Snow Crash", "The Left Hand of Darkness", "Foundation"]
+chain.batch(book_titles)
+Comparing this to the output from the previous notebook (see immediately below), you can see our results are more consistent and better.
+```python
+[{'title': 'Dune', 'author': 'Frank Herbert', 'year_of_publication': 1965},
+ {'title': 'Neuromancer', 'author': 'William Gibson', 'year': 1984},
+ {'title': 'Snow Crash', 'author': 'Neal Stephenson', 'yearPublished': '1992'},
+ {'title': 'The Left Hand of Darkness',
+  'author': None,
+  'publication_year': None},
+ {'title': 'Foundation', 'author': 'Isaac Asimov', 'year': '1951'}]
+ ```
+---
+## Using with_structured_output
+As an alternative, and improved way to generate structured output, many LLMs now support the `with_structured_output` method, which allows us to replace the following...
+```python
+template = ChatPromptTemplate.from_messages([
+    ("system", "You are an AI that generates JSON and only JSON according to the instructions provided to you."),
+    ("human", (
+        "Generate JSON about the user input according to the provided format instructions.\n" +
+        "Input: {input}\n" +
+        "Format instructions {format_instructions}")
+    )
+])
+
+chain = template.partial(format_instructions=format_instructions) | llm | JsonOutputParser(pydantic_object=Book)
+```
+... with:
+```python
+llm_structured = llm.with_structured_output(Book)
+```
+In the example just shown, `llm_structured` can be invoked, batched, or streamed just like `chain`, but the syntax is much more concise.
+
+At the time of writing this (November 2024), the Llama 3.1b instruct NIM does not yet fully support the use of the `with_structured_output` method, but we expect it to be available very soon.
+---
+## Exercise: Leverage Pydantic for Structured Data Generation
+For this exercise you are going to generate a batch of structured data for the following cites.
+city_names = ['Tokyo', 'Busan', 'Cairo', 'Perth']
+For each of these cities you should create a JSON blob that contains information about the city, including:
+- The name of the city.
+- The country that the city is located within.
+- Whether or not the city is the capital city of the country it is located in.
+- The population of the city.
+
+Feel free to check out the Solution below if you get stuck.
+### Your Work Here
+
+### Solution
+class City(BaseModel):
+    """Information about a city."""
+
+    name: str = Field(description="The name of the city")
+    country: str = Field(description="The the country the city is located in")
+    capital: bool = Field(description="Is the city the capital of the country it is located in")
+    population: int = Field(description="The population of the city")
+template = ChatPromptTemplate.from_messages([
+    ("system", "You are an AI that generates JSON and only JSON according to the instructions provided to you."),
+    ("human", (
+        "Generate JSON about the user input according to the provided format instructions.\n" +
+        "Input: {input}\n" +
+        "Format instructions {format_instructions}")
+    )
+])
+parser = JsonOutputParser(pydantic_object=City)
+template_with_format_instructions = template.partial(format_instructions=parser.get_format_instructions())
+chain = template_with_format_instructions | llm | parser
+chain.batch(city_names)
+---
+## Summary
+In this notebook you took a tremendous leap in your ability to generate structured data. In the next notebook, you are going to extend this skill set even further. Rather than providing individual data samples to drive data generation, you'll pipe long-form text into the model which you will equip to extract and tag data as you specify.

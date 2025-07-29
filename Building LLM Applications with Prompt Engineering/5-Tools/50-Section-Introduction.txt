@@ -1,0 +1,10 @@
+![NVIDIA](images/nvidia.png)
+# Section 5: Tool Use and Agents
+LLMs are capable to identify when an application ought to utilize functionality external to the LLM itself, and, how that external functionality ought to be invoked. Such components of functionality external to the LLM are referred to as tools, and the paradigm by which our LLM-applications identify when and how to use tools is called agents.
+
+Tool use and agents are a huge topic in their own right, but in this section we'd like to give you an introduction to their use in the context of LLM applications. By the time you complete this section you be able to create tools, as well as simple agents that can integrate their use into your LLM-based chains.
+---
+## Section Table of Contents
+1. **Tool Calling:** In this notebook you learn to create tools, and make your LLM instances aware of their availability for use.
+2. **Agents:** In this notebook you will learn how to create an agent capable of reasoning about when tool use is appropriate, and integrating the result of tool use into its responses.
+3. **Workshop Conclusion:** In this final notebook we conclude the workshop with a summary of all you've done, instructions for getting a certificate for the workshop, a request for feedback, and recommendations for next steps.

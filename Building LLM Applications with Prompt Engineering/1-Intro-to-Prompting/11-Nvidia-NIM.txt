@@ -1,0 +1,42 @@
+![nvidia](images/nvidia.png)
+# NVIDIA NIM for Prompt Engineering
+## Objective
+
+By the time you complete this notebook you will be able to:
+
+- Know how we are going to utilize NVIDIA Inference Microservices to conduct prompt engineering
+- Introduce benefits of running a locally-hosted large language model as opposed to API-hosted LLM
+---
+## NVIDIA Inference Microservice
+NVIDIA NIM is a set of easy-to-use microservices designed for secure, reliable deployment of high performance AI model inference across the cloud, data center and workstations. Supporting a wide range of AI models, including open-source community and NVIDIA AI Foundation models, it ensures seamless, scalable AI inferencing, on premises or in the cloud, implementing industry standard APIs.
+---
+## build.nvidia.com
+
+You can quickly browse which models are available to use at [build.nvidia.com](https://build.nvidia.com/explore/discover), with models ranging from open-source LLMs such as [Llama3.1-405b](https://build.nvidia.com/meta/llama-3_1-405b-instruct) to image generation models such as [Stable-diffusion-xl](https://build.nvidia.com/explore/visual-design#stable-diffusion-xl).
+
+In this website, you can also preview how the model will perform by interacting with the Graphical User Interface.
+
+![build.nvidia.com](images/build.nvidia.png)
+---
+## API-hosted NIM
+You can also interact with the NIM microservices programatically with an API-hosted NIM on [build.nvidia.com](https://build.nvidia.com/explore/discover) and an `nvapi` key.
+
+Using the build.nvidia.com API catalog is a great way to experiment with NIM microservices. Once you've identified a model that you're interested in developing further, you can download the NIM onto your local infrastructure and proceed with full application development.
+---
+## The Course Environment
+When you first kickstart this course, an instance on a cloud platform is allocated to you by Deep Learning Institute (DLI).
+With this cloud instance, we've deployed a series of microservices that a user or system could rely on.
+This series of microservices, deployed via Docker, includes this Jupyter Lab environment and NIM container.
+
+NIM mircoservices are packaged as container images on a per model/model family basis. Within this course environment, we have downloaded the NIM container with the [meta/llama-3_1-8b-Instruct](https://build.nvidia.com/explore/discover#llama-3_1-8b-instruct) model.
+
+This container include a runtime that runs on NVIDIA GPUs with sufficient memory. NIM microservices automatically download the model from NGC (portal of enterprise services, software, management tools, and support for end-to-end AI workflows) and leverage a local filesystem cache if available.
+![NIMDeploymentLifecycle](images/NIM_Deployment.png)
+LLM NIM microservices have a variety of benefits, a few of which we'll touch on here.
+
+- **Speed**: LLM NIM microservices are supported with pre-generated optimized engines for a diverse range of cutting edge LLM architectures, allowing for low latency when making inference.
+- **Scalable Deployment**: API-hosted LLMs can be expensive for large-scale or high-volume needs, but local deployments offer a more cost-effective solution. By investing in the initial setup, you can scale locally hosted models easily by adding computing resources or distributing them across multiple machines.
+- **Ownership**: Once set up, running a model locally gives you ownership of the customization and full control of your intellectual property and AI applications.
+---
+## Conclusion
+In this notebook you were introduced to NVIDIA NIM microservices, and learned about a variety of ways you can use them. Now that you know what a NIM is, let's proceed to the next notebook where you will begin interacting with the Llama-3.1 8b instruct NIM running locally on this machine.

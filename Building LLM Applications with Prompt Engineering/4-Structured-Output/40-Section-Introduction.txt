@@ -1,0 +1,8 @@
+![NVIDIA](images/nvidia.png)
+# Section 4: Structured Output
+In this section you'll learn about some real workhorse techniques that will allow you to create chains capable not only of generating structured output, but of ingesting free form text and performing sophisticated data extraction and tagging. You'll be using the incredibly popular data validation library Pydantic to assist your work, and by the time you complete the section will have a tool in your tool belt that you will be able to apply in a vast number of LLM-based applications.
+---
+## Section Table of Contents
+1. **Structured Ouput:** In this notebook we introduce using LLMs to generate structured output, and explore some basic methods for using LLMs to generate data in batch for downstream use.
+2. **Structured Output With Pydantic:** In this notebook you will drastically upgrade your ability to generate structured output through a combination of Pydantic classes and LangChain's `JsonOutputParser`.
+3. **Document Tagging:** In this notebook you'll extend your skill set of generating structure data by learning how to extract data and tag it as you specify out of long form text.
